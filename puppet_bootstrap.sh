@@ -1,5 +1,14 @@
 #!/bin/bash -x
 
+
+function check_arg {
+  if [[ $2 == -* ]] || [[ -z $2 ]]
+  then
+    echo "Wrong arg $2 for option $1. Aborting execution..."
+    exit 1
+  fi
+}
+
 CONFIG_FILE=`dirname $0`/config
 cd `dirname $0`
 
@@ -8,44 +17,113 @@ then
   echo "Configuration file $CONFIG_FILE not found, copy and customise $CONFIG_FILE-template"
 fi
 
+
+
+until [ -z $1 ]
+do
+  OPTION=$1
+  shift
+
+  if [ "$OPTION" == "--user" ] || [ "$OPTION" == "-u" ]
+  then
+    ARG=$1
+    shift
+    check_arg $OPTION $ARG
+    USER=$ARG
+  elif [ "$OPTION" == "--host" ] || [ "$OPTION" == "-h" ]
+  then
+    ARG=$1
+    shift
+    check_arg $OPTION $ARG
+    HOST=$ARG
+  elif [ "$OPTION" == "--env" ] || [ "$OPTION" == "-e" ]
+  then
+    ARG=$1
+    shift
+    check_arg $OPTION $ARG
+    R10K_ENV=$ARG
+  elif [ "$OPTION" == "--version" ] || [ "$OPTION" == "-v" ]
+  then
+    ARG=$1
+    shift
+    check_arg $OPTION $ARG
+    VERSION=$ARG
+  elif [ "$OPTION" == "--role" ] || [ "$OPTION" == "-r" ]
+  then
+    ARG=$1
+    shift
+    check_arg $OPTION $ARG
+    ROLE=$ARG
+  elif [ "$OPTION" == "--token"]
+  then
+    ARG=$1
+    shift
+    check_arg $OPTION $ARG
+    ETCD_TOKEN=$ARG
+  else
+    echo $1 not recognized as a valid option
+  fi
+done
+
+
 source $CONFIG_FILE
 
 echo User $USER
+echo Host $HOST
 echo Version $VERSION
 echo Repository $GIT_REPO
+echo R10K environment $R10K_ENV
 echo Puppet Release url $PUPPET_RELEASE_URL
 echo Puppet release name$PUPPET_RELEASE_NAME
 echo Manifest path $MANIFEST_PATH
 
 
-cat <<EOF | ssh $USER 'sudo bash -s' 
+eval `ssh-agent`
+ssh-add
+
+cat <<EOF | ssh -A "${USER}@${HOST}" "sudo SSH_AUTH_SOCK=\${SSH_AUTH_SOCK} bash -s -x"
   echo "INSTALLING git and puppet"
   cd /tmp && wget $PUPPET_RELEASE_URL && dpkg -i $PUPPET_RELEASE_NAME
   apt-get update && apt-get -y install git puppet
-  
+
   service puppet stop
   echo "WAITING FOR PUPPET TO STOP..."
   sleep 10
 
   echo "REPLACING the old manifest with $VERSION from ${GIT_REPO}..."
+  ssh-keyscan -t rsa,dsa github.com >> /root/.ssh/known_hosts
+  ssh-keyscan -t rsa,dsa git.foodity.com >> /root/.ssh/known_hosts
   rm -rf /etc/puppet && git clone -b $VERSION $GIT_REPO /etc/puppet
+  cd /tmp && rm -rf puppet-r10k && git clone -b master git@git.foodity.com:claudio.benfatto/puppet-r10k.git
 
   echo "ASSIGNING role=$ROLE and version=$VERSION to the node..."
   mkdir -p /etc/facter/facts.d
   echo foodity_role=$ROLE > /etc/facter/facts.d/role.txt
   echo manifest_revision=$VERSION > /etc/facter/facts.d/manifest_revision.txt
-
-  echo "INSTALLING ruby packages and gems..."
-  if [ "\$(lsb_release -r | cut -f2)" == "14.04" ]; then
-    apt-get -y install rubygems-integration
+  if [ -z "$ETCD_TOKEN" ]; then
+    echo "No ETCD will be set"
   else
-    apt-get -y install rubygems
+    echo etcd_discovery_token=$ETCD_TOKEN > /etc/facter/facts.d/etcd.txt
   fi
-  gem install deep_merge
-  gem install hiera-eyaml
-  gem install highline
+
+#  echo "INSTALLING ruby packages and gems..."
+#  if [ "\$(lsb_release -r | cut -f2)" == "14.04" ]; then
+#    apt-get -y install rubygems-integration
+#  else
+#    apt-get -y install rubygems
+#  fi
+#  apt-get -y install build-essential
+#  apt-get -y install ruby1.9.1-dev
+#  gem install deep_merge
+#  gem install hiera-eyaml
+#  gem install hiera-eyaml-gpg
+#  gem install highline
+
+  puppet module install zack/r10k --target-dir /tmp/puppet-r10k/modules
+  puppet apply --modulepath=/tmp/puppet-r10k/modules/ /tmp/puppet-r10k/configure_r10k.pp
+  r10k deploy environment ${R10K_ENV} -pv
 
 #  echo "APPLYING the puppet manifest..."
-  puppet apply $MANIFEST_PATH --modulepath=$MODULE_PATH --debug
+  puppet apply $MANIFEST_PATH --modulepath=$MODULE_PATH --environment=${R10K_ENV} --debug
 EOF
 

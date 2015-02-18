@@ -1,11 +1,7 @@
-############# DEPLOYMENT CONFIGURATION ########################################
-USER='azureuser@analitycs-back.cloudapp.net'
-VERSION='jenkins'
-ROLE='None'
-
 ############ SYSTEM CONFIGURATION ################################################
 PUPPET_RELEASE_NAME='puppetlabs-release-precise.deb'
 PUPPET_RELEASE_URL='https://s3-eu-west-1.amazonaws.com/software.foodity.com/puppetlabs-release-precise.deb'
-GIT_REPO='git@git.foodity.com:claudio.benfatto/puppet-automation.git'
-MANIFEST_PATH='/etc/puppet/environments/production/manifests/site.pp'
-MODULE_PATH='/etc/puppet/environments/production/modules/'
+GIT_REPO='git@github.com:foodity/puppet-base.git'
+MANIFEST_PATH="/etc/puppet/environments/${R10K_ENV}/manifests/site.pp"
+MODULE_PATH="/etc/puppet/environments/${R10K_ENV}/modules/"
+
