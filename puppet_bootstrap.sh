@@ -54,7 +54,13 @@ do
     shift
     check_arg $OPTION $ARG
     ROLE=$ARG
-  elif [ "$OPTION" == "--token"]
+elif [ "$OPTION" == "--profile" ] || [ "$OPTION" == "-p" ]
+  then
+    ARG=$1
+    shift
+    check_arg $OPTION $ARG
+    PROFILE=$ARG
+  elif [ "$OPTION" == "--token" ]
   then
     ARG=$1
     shift
@@ -96,9 +102,10 @@ cat <<EOF | ssh -A "${USER}@${HOST}" "sudo SSH_AUTH_SOCK=\${SSH_AUTH_SOCK} bash 
   rm -rf /etc/puppet && git clone -b $VERSION $GIT_REPO /etc/puppet
   cd /tmp && rm -rf puppet-r10k && git clone -b master git@git.foodity.com:claudio.benfatto/puppet-r10k.git
 
-  echo "ASSIGNING role=$ROLE and version=$VERSION to the node..."
+  echo "ASSIGNING role=$ROLE , profile=$PROFILE and version=$VERSION to the node..."
   mkdir -p /etc/facter/facts.d
   echo foodity_role=$ROLE > /etc/facter/facts.d/role.txt
+  echo foodity_profile=$PROFILE > /etc/facter/facts.d/profile.txt
   echo manifest_revision=$VERSION > /etc/facter/facts.d/manifest_revision.txt
   if [ -z "$ETCD_TOKEN" ]; then
     echo "No ETCD will be set"
@@ -126,4 +133,3 @@ cat <<EOF | ssh -A "${USER}@${HOST}" "sudo SSH_AUTH_SOCK=\${SSH_AUTH_SOCK} bash 
 #  echo "APPLYING the puppet manifest..."
   puppet apply $MANIFEST_PATH --modulepath=$MODULE_PATH --environment=${R10K_ENV} --debug
 EOF
-
