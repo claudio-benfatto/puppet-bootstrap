@@ -1,0 +1,33 @@
+apt-get remove -y puppetlabs-release puppet puppet-common hiera facter --purge
+cd /tmp && wget https://apt.puppetlabs.com/puppetlabs-release-pc1-$(lsb_release -c -s).deb && dpkg -i puppetlabs-release-pc1-$(lsb_release -c -s).deb
+
+gem uninstall -a -x hiera-eyaml deep_merge r10k
+
+apt-get update && apt-get install -y puppet-agent
+/opt/puppetlabs/puppet/bin/gem install hiera-eyaml r10k hiera-eyaml-gpg ruby_gpg
+
+
+echo manifest_revision=r10k-v4 > /etc/facter/facts.d/manifest_revision.txt
+
+rm -rf /etc/puppet && rm -rf /etc/puppetlabs && git clone -b r10k-v4 git@github.com:foodity/puppet-base.git /etc/puppetlabs
+
+cat << EOF > /usr/local/bin/papply
+#!/bin/bash
+
+if [ -z "\$1" ]
+then
+  echo "No argument supplied. Usage papply environment"
+  exit 1
+fi
+
+ENVIRONMENT=\$1
+shift
+
+export PATH=$PATH:/opt/puppetlabs/bin/
+cd /etc/puppetlabs && git reset --hard && git pull
+/opt/puppetlabs/puppet/bin/r10k deploy environment \$ENVIRONMENT -pv
+/opt/puppetlabs/bin/puppet apply /etc/puppetlabs/code/environments/\$ENVIRONMENT/manifests/site.pp  --environmentpath=/etc/puppetlabs/code/environments/ --confdir=/etc/puppetlabs/puppet/ --environment=\$ENVIRONMENT --hiera_config=/etc/puppetlabs/code/hiera.yaml --modulepath=/etc/puppetlabs/code/environments/\$ENVIRONMENT/modules/ \$*
+
+EOF
+
+papply production --noop

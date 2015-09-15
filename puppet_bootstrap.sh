@@ -87,7 +87,7 @@ echo Manifest path $MANIFEST_PATH
 eval `ssh-agent`
 ssh-add
 
-cat <<EOF | ssh -A "${USER}@${HOST}" "sudo SSH_AUTH_SOCK=\${SSH_AUTH_SOCK} bash -s -x"
+cat <<EOF | ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -A "${USER}@${HOST}" "sudo SSH_AUTH_SOCK=\${SSH_AUTH_SOCK} bash -s -x"
   echo "INSTALLING git and puppet"
   cd /tmp && wget $PUPPET_RELEASE_URL && dpkg -i $PUPPET_RELEASE_NAME
   apt-get update && apt-get -y install git puppet
@@ -99,19 +99,30 @@ cat <<EOF | ssh -A "${USER}@${HOST}" "sudo SSH_AUTH_SOCK=\${SSH_AUTH_SOCK} bash 
   echo "REPLACING the old manifest with $VERSION from ${GIT_REPO}..."
   ssh-keyscan -t rsa,dsa github.com >> /root/.ssh/known_hosts
   ssh-keyscan -t rsa,dsa git.foodity.com >> /root/.ssh/known_hosts
-  rm -rf /etc/puppet && git clone -b $VERSION $GIT_REPO /etc/puppet
-  cd /tmp && rm -rf puppet-r10k && git clone -b master git@git.foodity.com:claudio.benfatto/puppet-r10k.git
 
   echo "ASSIGNING role=$ROLE , profile=$PROFILE and version=$VERSION to the node..."
   mkdir -p /etc/facter/facts.d
-  echo foodity_role=$ROLE > /etc/facter/facts.d/role.txt
-  echo foodity_profile=$PROFILE > /etc/facter/facts.d/profile.txt
+  if [ ! -f "/etc/facter/facts.d/role.txt" ]; then
+      echo foodity_role=$ROLE > /etc/facter/facts.d/role.txt
+  else
+      echo "Server already assigned with a role. Aborting..."
+      exit 1
+  fi
+  if [ ! -f "/etc/facter/facts.d/profile.txt" ]; then
+      echo foodity_profile=$PROFILE > /etc/facter/facts.d/profile.txt
+  else
+      echo "Server already assigned with a profile. Aborting..."
+      exit 1
+  fi
   echo manifest_revision=$VERSION > /etc/facter/facts.d/manifest_revision.txt
   if [ -z "$ETCD_TOKEN" ]; then
     echo "No ETCD will be set"
   else
     echo etcd_discovery_token=$ETCD_TOKEN > /etc/facter/facts.d/etcd.txt
   fi
+
+  rm -rf /etc/puppet && git clone -b $VERSION $GIT_REPO /etc/puppet
+  cd /tmp && rm -rf puppet-r10k && git clone -b master git@git.foodity.com:claudio.benfatto/puppet-r10k.git
 
 #  echo "INSTALLING ruby packages and gems..."
 #  if [ "\$(lsb_release -r | cut -f2)" == "14.04" ]; then
