@@ -1,5 +1,0 @@
-############ SYSTEM CONFIGURATION ################################################
-PUPPET_RELEASE_URL='https://s3-eu-west-1.amazonaws.com/software.foodity.com/'
-GIT_REPO='git@github.com:foodity/puppet-base.git'
-MANIFEST_PATH="/etc/puppetlabs/code/environments/${R10K_ENV}/manifests/site.pp"
-MODULE_PATH="/etc/puppetlabs/code/environments/${R10K_ENV}/modules/"

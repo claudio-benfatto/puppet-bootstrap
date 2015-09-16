@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 function check_arg {
   if [[ $2 == -* ]] || [[ -z $2 ]]
@@ -20,6 +20,9 @@ do
     shift
     check_arg $OPTION $ARG
     USER=$ARG
+  elif [ "$OPTION" == "--force" ] || [ "$OPTION" == "-f" ]
+  then
+    FORCE=true
   elif [ "$OPTION" == "--host" ] || [ "$OPTION" == "-h" ]
   then
     ARG=$1
@@ -55,19 +58,27 @@ elif [ "$OPTION" == "--profile" ] || [ "$OPTION" == "-p" ]
   fi
 done
 
+if [ "z$USER" = "z" ] || [ "z$HOST" = "z" ] || [ "z$VERSION" = "z" ] || [ "z$R10K_ENV" = "z" ] || [ "z$ROLE" = "z" ]; then
+  echo "Usage ./puppet_bootstrap_v4 --user ubuntu --host host --env production --puppet r10k-v4 --role role [--profile profile] [--force]"
+  exit 1
+fi
+
 echo User $USER
 echo Host $HOST
 echo Version $VERSION
-echo Repository $GIT_REPO
+echo Role $ROLE
+echo Profile $PROFILE
 echo R10K environment $R10K_ENV
-echo Puppet Release url $PUPPET_RELEASE_URL
-echo Puppet release name$PUPPET_RELEASE_NAME
-echo Manifest path $MANIFEST_PATH
 
 PUPPET_RELEASE_URL='https://s3-eu-west-1.amazonaws.com/software.foodity.com/'
 GIT_REPO='git@github.com:foodity/puppet-base.git'
 MANIFEST_PATH="/etc/puppetlabs/code/environments/${R10K_ENV}/manifests/site.pp"
 MODULE_PATH="/etc/puppetlabs/code/environments/${R10K_ENV}/modules/"
+
+echo Repository $GIT_REPO
+echo Manifest path $MANIFEST_PATH
+echo Module path $MODULE_PATH
+echo Puppet Release url $PUPPET_RELEASE_URL
 
 
 eval `ssh-agent`
@@ -100,14 +111,14 @@ cat <<EOF | ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -A "
 
   echo "ASSIGNING role=$ROLE , profile=$PROFILE and version=$VERSION to the node..."
   mkdir -p /etc/facter/facts.d
- # if [ ! -f "/etc/facter/facts.d/role.txt" ] || [ ! -f "/etc/facter/facts.d/profile.txt" ]; then
+  if [ $FORCE = true  ] || [ ! -f "/etc/facter/facts.d/role.txt" ] || [ ! -f "/etc/facter/facts.d/profile.txt" ]; then
       echo foodity_role=$ROLE > /etc/facter/facts.d/role.txt
       echo foodity_profile=$PROFILE > /etc/facter/facts.d/profile.txt
       echo manifest_revision=$VERSION > /etc/facter/facts.d/manifest_revision.txt
-  #else
-#      echo "Server already bootstrapped. Aborting..."
-#      exit 1
-#  fi
+  else
+      echo "Server already bootstrapped. Aborting..."
+      exit 1
+  fi
 
   rm -rf /etc/puppet && rm -rf /etc/puppetlabs && git clone -b $VERSION $GIT_REPO /etc/puppetlabs
 
