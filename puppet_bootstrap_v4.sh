@@ -111,7 +111,7 @@ cat <<EOF | ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -A "
 
   echo "ASSIGNING role=$ROLE , profile=$PROFILE and version=$VERSION to the node..."
   mkdir -p /etc/facter/facts.d
-  if [ $FORCE = true  ] || [ ! -f "/etc/facter/facts.d/role.txt" ] || [ ! -f "/etc/facter/facts.d/profile.txt" ]; then
+  if [ "$FORCE" = "true"  ] || [ ! -f "/etc/facter/facts.d/role.txt" ] || [ ! -f "/etc/facter/facts.d/profile.txt" ]; then
       echo foodity_role=$ROLE > /etc/facter/facts.d/role.txt
       echo foodity_profile=$PROFILE > /etc/facter/facts.d/profile.txt
       echo manifest_revision=$VERSION > /etc/facter/facts.d/manifest_revision.txt
